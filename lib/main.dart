@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:location/location.dart';
 import 'package:map_track_location_flutter/constant_v.dart';
 
 void main() {
@@ -43,6 +44,14 @@ class _MyHomePageState extends State<MyHomePage> {
 
   List<LatLng> polylineCoordinates = [];
 
+  BitmapDescriptor sourceIcon = BitmapDescriptor.defaultMarker;
+  BitmapDescriptor destionationIcon = BitmapDescriptor.defaultMarker;
+  BitmapDescriptor currentLocationIcon = BitmapDescriptor.defaultMarker;
+
+  LatLng? currentLocations;
+
+  //custome marker
+
   void getPolyPoints() async {
     PolylinePoints polylinePoits = PolylinePoints();
     PolylineResult result = await polylinePoits.getRouteBetweenCoordinates(
@@ -59,16 +68,17 @@ class _MyHomePageState extends State<MyHomePage> {
         polylineCoordinates.add(LatLng(element.latitude, element.longitude));
       }
     }
-    setState(() {
-      
-    });
+    setState(() {});
   }
 
   @override
   void initState() {
-   
     super.initState();
-     getPolyPoints();
+    
+    //call if you want to update current user location
+    //getCurretnLocation();
+    //getPolyPoints();
+    getMarkerIcons();
   }
 
   @override
@@ -86,19 +96,83 @@ class _MyHomePageState extends State<MyHomePage> {
         polylines: {
           Polyline(
               polylineId: const PolylineId("route"),
+              color: Colors.blue,
+              width: 6,
               points: polylineCoordinates)
         },
         markers: {
-          const Marker(
-            markerId: MarkerId("source"),
-            position: sourceLocation,
-          ),
-          const Marker(
-            markerId: MarkerId("destination"),
-            position: sourceDestination,
-          ),
+          Marker(
+              markerId: const MarkerId("source"),
+              position: sourceLocation,
+              icon: sourceIcon),
+          Marker(
+              markerId: const MarkerId("destination"),
+              position: sourceDestination,
+              icon: currentLocationIcon),
+          // Marker(
+          //     markerId: const MarkerId("current"),
+          //     position: currentLocations ?? sourceLocation,
+          //     icon: currentLocationIcon),
         },
       ),
     );
+  }
+
+  Future<void> getCurretnLocation() async {
+    Location location = new Location();
+
+    bool _serviceEnabled;
+    PermissionStatus _permissionGranted;
+    LocationData _locationData;
+    GoogleMapController googleMapController = await controller.future;
+    _serviceEnabled = await location.serviceEnabled();
+    if (!_serviceEnabled) {
+      _serviceEnabled = await location.requestService();
+      if (!_serviceEnabled) {
+        return;
+      }
+    }
+
+    _permissionGranted = await location.hasPermission();
+    if (_permissionGranted == PermissionStatus.denied) {
+      _permissionGranted = await location.requestPermission();
+      if (_permissionGranted != PermissionStatus.granted) {
+        return;
+      }
+    }
+
+    _locationData = await location.getLocation();
+    //update location to main source  location
+    currentLocations =
+        LatLng(_locationData.latitude!, _locationData.longitude!);
+    location.onLocationChanged.listen((LocationData currentLocation) {
+      currentLocations =
+          LatLng(currentLocation.latitude!, currentLocation.longitude!);
+      //animation for navigates
+      googleMapController.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target:
+                LatLng(currentLocation.latitude!, currentLocation.longitude!),
+          ),
+        ),
+      );
+      setState(() {});
+    });
+    setState(() {
+      
+    });
+  }
+
+  void getMarkerIcons() {
+    // ignore: deprecated_member_use
+    BitmapDescriptor.fromAssetImage(
+            ImageConfiguration.empty, "assets/location.png")
+        .then((icon) {
+      currentLocationIcon = icon;
+      setState(() {
+        
+      });
+    });
   }
 }
